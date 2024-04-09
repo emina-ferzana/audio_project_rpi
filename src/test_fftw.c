@@ -9,9 +9,9 @@ int main(int argc, char** argv) {
     if (argc == 2) {
         wav_file = argv[1];
     } else if (argc == 1){
-        wav_file = "/home/pi/project/file_stereo.wav";
+        wav_file = "/home/pi/project/audio_files/file_stereo.wav";
     } else {
-        printf("Usage: ./%s <wav_file> or ./%s\n", argv[0]);
+        printf("Usage: ./%s <wav_file> or ./%s\n", argv[0], argv[0]);
         return 1;
     }
 
@@ -41,6 +41,11 @@ int main(int argc, char** argv) {
 
     /* Allocate space for the data to be read, then read it. */
     buf = (double *) malloc(num_items*sizeof(double));
+    if ( buf == NULL ){
+        perror("Memory allocation failed");
+        free(buf);
+        exit(2);
+    }
     num = sf_read_double(file,buf,num_items);
     sf_close(file);
     printf("Read %d items\n",num);
@@ -50,8 +55,9 @@ int main(int argc, char** argv) {
     rightChannel = (double *)malloc(f * sizeof(double));
     if (leftChannel == NULL || rightChannel == NULL) {
         perror("Memory allocation failed");
-        free(buf);
-        exit(2);
+        free(leftChannel);
+        free(rightChannel);
+        exit(3);
     }
 
     /* Deinterleave the data into left and right channels. */
@@ -119,7 +125,6 @@ int main(int argc, char** argv) {
     fftw_free(in2);
     fftw_free(out1);
     fftw_free(out2);
-
     free(buf);
     free(leftChannel);
     free(rightChannel);
