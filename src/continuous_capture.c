@@ -8,7 +8,8 @@
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 #define SAMPLE_RATE 48000
 #define NUM_CHANNELS  2
-#define FRAME_SIZE (NUM_CHANNELS * sizeof(float))
+#//define FRAME_SIZE (NUM_CHANNELS * sizeof(float))
+#define FRAME_SIZE (sizeof(float))
 #define FRAMES_PER_BUFFER 512
 #define FILE_NAME          "capture.raw"
 #define PA_SAMPLE_TYPE  paFloat32
@@ -79,7 +80,7 @@ int main(void){
     PaError             err = paNoError;
     AudioData           microphoneData;
     unsigned long       numSamples, numBytes;
-    printf("Initiating continuous audio capture.\n"); fflush(stdout);
+    printf("Initiating continuous audio capture. size of sample and float and sample type: %d %d %d\n", sizeof(SAMPLE), sizeof(float), sizeof(PA_SAMPLE_TYPE)); fflush(stdout);
     numSamples = NextPowerOf2((unsigned long) SAMPLE_RATE * 0.5 * NUM_CHANNELS);
     numBytes = numSamples * sizeof(SAMPLE);
     microphoneData.ringBufferData = (SAMPLE*)malloc(numBytes);
@@ -107,7 +108,7 @@ int main(void){
         fprintf(stderr,"Error: No default input device.\n");
         exit(4);
     }
-    inputParameters.channelCount = 2;                    /* stereo input */
+    inputParameters.channelCount = NUM_CHANNELS;                    /* stereo input */
     inputParameters.sampleFormat = PA_SAMPLE_TYPE;
     inputParameters.suggestedLatency = Pa_GetDeviceInfo( inputParameters.device )->defaultLowInputLatency;
     inputParameters.hostApiSpecificStreamInfo = NULL;
@@ -149,11 +150,13 @@ int main(void){
         exit(7);
     }
     printf("\n=== Started stream. Recording, Press CTRL+C to stop.\n"); fflush(stdout);
+    SAMPLE buffer[numBytes];
     while(keepRunning){
         
         size_t itemsToRead = PaUtil_GetRingBufferReadAvailable(&microphoneData.ringBuffer);
         if (itemsToRead > 0) {
-            float buffer[itemsToRead * sizeof(size_t)];
+            //float buffer[itemsToRead * 2* sizeof(SAMPLE)];
+
             ring_buffer_size_t itemsRead = PaUtil_ReadRingBuffer(&microphoneData.ringBuffer, buffer, itemsToRead);
             fwrite(buffer, FRAME_SIZE, itemsRead, microphoneData.file);
         }
