@@ -6,6 +6,8 @@
 #include "pa_util.h"
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
+
+
 #define SAMPLE_RATE 48000
 #define NUM_CHANNELS  2
 #//define FRAME_SIZE (NUM_CHANNELS * sizeof(float))
@@ -15,7 +17,7 @@
 #define PA_SAMPLE_TYPE  paFloat32
 
 typedef float SAMPLE;
-SAMPLE sampleSilence[FRAMES_PER_BUFFER]={(0.0f)};
+SAMPLE sampleSilence[FRAMES_PER_BUFFER * NUM_CHANNELS]={(0.0f)};
 
 volatile sig_atomic_t keepRunning = 1; 
 
@@ -58,8 +60,6 @@ static int recordCallback(const void *inputBuffer, void *outputBuffer,
     (void) statusFlags;
     (void) userData;
 
-   
-    
     return keepRunning ? paContinue : paComplete;
 }
 
@@ -75,6 +75,7 @@ static unsigned NextPowerOf2(unsigned val)
 }
 
 int main(void){
+
     PaStreamParameters  inputParameters;
     PaStream*           stream;
     PaError             err = paNoError;
@@ -106,6 +107,8 @@ int main(void){
     inputParameters.device = Pa_GetDefaultInputDevice();
     if (inputParameters.device == paNoDevice) {
         fprintf(stderr,"Error: No default input device.\n");
+        if (microphoneData.ringBufferData) free(microphoneData.ringBufferData); 
+        Pa_Terminate();  
         exit(4);
     }
     inputParameters.channelCount = NUM_CHANNELS;                    /* stereo input */

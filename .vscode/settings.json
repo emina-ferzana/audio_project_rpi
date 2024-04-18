@@ -1,5 +1,9 @@
 {
     "files.associations": {
-        "pa_ringbuffer.h": "c"
+        "pa_ringbuffer.h": "c",
+        "*.tcc": "c",
+        "numeric": "c",
+        "ostream": "c",
+        "portaudio.h": "c"
     }
 }

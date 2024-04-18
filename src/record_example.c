@@ -206,6 +206,8 @@ int main(void)
     int                 numBytes;
     SAMPLE              max, val;
     double              average;
+    const PaDeviceInfo* inputInfo;
+    const PaDeviceInfo* outputInfo;
 
     printf("patest_record.c\n"); fflush(stdout);
 
@@ -224,15 +226,24 @@ int main(void)
     err = Pa_Initialize();
     if( err != paNoError ) goto done;
 
-    inputParameters.device = Pa_GetDefaultInputDevice(); /* default input device */
+    //inputParameters.device = Pa_GetDefaultInputDevice(); /* default input device */
+    inputParameters.device = 0; /* snd_rpi_i2s_card number from the output of pa_devs.c*/
     if (inputParameters.device == paNoDevice) {
         fprintf(stderr,"Error: No default input device.\n");
         goto done;
     }
+    
+    inputInfo = Pa_GetDeviceInfo( inputParameters.device );
+
     inputParameters.channelCount = NUM_CHANNELS;
     inputParameters.sampleFormat = PA_SAMPLE_TYPE;
-    inputParameters.suggestedLatency = Pa_GetDeviceInfo( inputParameters.device )->defaultLowInputLatency;
+    inputParameters.suggestedLatency = inputInfo->defaultLowInputLatency;
     inputParameters.hostApiSpecificStreamInfo = NULL;
+
+    printf( "Input device # %d.\n", inputParameters.device );
+    printf( "    Name: %s\n", inputInfo->name );
+    printf( "      LL: %g s\n", inputInfo->defaultLowInputLatency );
+    printf( "      HL: %g s\n", inputInfo->defaultHighInputLatency );
 
     /* Record some audio. -------------------------------------------- */
     err = Pa_OpenStream(
@@ -300,17 +311,25 @@ int main(void)
     /* Playback recorded data.  -------------------------------------------- */
     data.frameIndex = 0;
 
-    outputParameters.device = Pa_GetDefaultOutputDevice(); /* default output device */
+    //outputParameters.device = Pa_GetDefaultOutputDevice(); /* default output device */
+    outputParameters.device = 2; /* usb audio device index from the output of pa_devs.c */
     if (outputParameters.device == paNoDevice) {
         fprintf(stderr,"Error: No default output device.\n");
         goto done;
     }
+
+    outputInfo = Pa_GetDeviceInfo( outputParameters.device );
+
     outputParameters.channelCount = NUM_CHANNELS;
     outputParameters.sampleFormat =  PA_SAMPLE_TYPE;
-    outputParameters.suggestedLatency = Pa_GetDeviceInfo( outputParameters.device )->defaultLowOutputLatency;
+    outputParameters.suggestedLatency = outputInfo->defaultLowOutputLatency;
     outputParameters.hostApiSpecificStreamInfo = NULL;
-
+    printf( "Output device # %d.\n", outputParameters.device );
+    printf( "   Name: %s\n", outputInfo->name );
+    printf( "     LL: %g s\n", outputInfo->defaultLowOutputLatency );
+    printf( "     HL: %g s\n", outputInfo->defaultHighOutputLatency );
     printf("\n=== Now playing back. ===\n"); fflush(stdout);
+
     err = Pa_OpenStream(
               &stream,
               NULL, /* no input */
