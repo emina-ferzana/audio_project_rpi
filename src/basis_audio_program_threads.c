@@ -26,11 +26,12 @@ typedef float SAMPLE;
 #define SAMPLE_SIZE (sizeof(float))
 #define SAMPLE_SILENCE  (0.0f)
 #define PRINTF_S_FORMAT "%.8f"
-#define FILE_NAME       "some_audio_tests.raw"
+#define FILE_NAME       "thread_audio.raw"
 #define GAIN_FACTOR     2.0f
 
 static unsigned NextPowerOf2(unsigned val);
 void sigint_handler(int sig);
+void *writing_thread_function(void *arg);
 
 /* Custom data structure for passing to callback */
 typedef struct {
@@ -93,7 +94,7 @@ int main(void)
     const PaDeviceInfo* outputInfo;
     AudioData           microphoneData; // user data
     unsigned long       numSamples, numBytes;
-    SAMPLE *file_buffer;
+    
     pthread_t thread1;
     int ret1; // return value from thread
 
@@ -106,12 +107,7 @@ int main(void)
         perror("Could not allocate memory for ring buffer");
         exit(1);
     }
-    file_buffer = (SAMPLE*) malloc(numBytes);
-    if(file_buffer == NULL){
-        perror("Could not allocate memory for file buffer");
-        free(microphoneData.sampleData);
-        exit(1);
-    }
+    
     if (PaUtil_InitializeRingBuffer(&microphoneData.ringBuffer, sizeof(SAMPLE), numSamples, microphoneData.sampleData) < 0)
     {
         printf("Failed to initialize ring buffer. Size is not power of 2 ??\n");
@@ -159,10 +155,12 @@ int main(void)
               &microphoneData ); 
     if( err != paNoError ) goto error2;
 
-    /* Open the raw audio 'cache' file... */
-    microphoneData.file = fopen(FILE_NAME, "wb");
-    if (microphoneData.file == 0) goto error2;
-
+    // Starting the thread
+    ret1 = pthread_create(&thread1, NULL, writing_thread_function, (void *)&microphoneData);
+    if (ret1) {
+        fprintf(stderr, "Error - pthread_create() return code: %d\n", ret1);
+        exit(EXIT_FAILURE);
+    }
     /* Setup Signal Handler for CTRL+C */
     signal(SIGINT, sigint_handler);
 
@@ -170,23 +168,14 @@ int main(void)
     if( err != paNoError ) goto error1;
     printf("\n=== Started stream. Recording, Press CTRL+C to stop.\n"); fflush(stdout);
     
-    while(keepRunning){
-        
-        size_t itemsToRead = PaUtil_GetRingBufferReadAvailable(&microphoneData.ringBuffer);
-        if (itemsToRead > 0) {
-            //float buffer[itemsToRead * 2* sizeof(SAMPLE)];
-            ring_buffer_size_t itemsRead = PaUtil_ReadRingBuffer(&microphoneData.ringBuffer, file_buffer, itemsToRead);
-            fwrite(file_buffer, SAMPLE_SIZE, itemsRead, microphoneData.file);
-        }
-        Pa_Sleep(80);
-    }
+    // wait for thread to finish (triggered by CRTL + C)
+    pthread_join(thread1, NULL);
+
 
     err = Pa_StopStream( stream );
     if( err != paNoError ) goto error1;
     printf("Stopped stream.\n");
     if (microphoneData.sampleData) free(microphoneData.sampleData);
-    if (file_buffer) free(file_buffer);
-    if (microphoneData.file) fclose(microphoneData.file);
     Pa_Terminate();
     printf("Terminated sources.\n"); fflush(stdout);
     return 0;
@@ -206,17 +195,14 @@ xrun:
     return -2;
 error1:
     if (microphoneData.sampleData) free(microphoneData.sampleData);
-    if (file_buffer) free(file_buffer);
     Pa_Terminate();
-    if (microphoneData.file) fclose(microphoneData.file);    return -3;
+    return -3;
 error2:
     if( stream ) {
         Pa_AbortStream( stream );
         Pa_CloseStream( stream );
     }
     Pa_Terminate();
-    if (microphoneData.file) fclose(microphoneData.file);
-    if (file_buffer) free(file_buffer);
     if (microphoneData.sampleData) free(microphoneData.sampleData);
     fprintf( stderr, "An error occurred while using the portaudio stream\n" );
     fprintf( stderr, "Error number: %d\n", err );
@@ -237,4 +223,41 @@ static unsigned NextPowerOf2(unsigned val)
 
 void sigint_handler(int sig){
     keepRunning = 0; 
+}
+
+void *writing_thread_function(void *arg){
+
+    SAMPLE *file_buffer;
+    unsigned long       numSamples, numBytes;
+    AudioData *userdata = (AudioData *)arg;
+
+    numSamples = NextPowerOf2((unsigned long) SAMPLE_RATE * 0.5 * NUM_CHANNELS); // half a second of samples can fit
+    numBytes = numSamples * sizeof(SAMPLE);
+    file_buffer = (SAMPLE*) malloc(numBytes);
+
+    if(file_buffer == NULL){
+        perror("Could not allocate memory for file buffer. Data will not be written to file! \n");
+        return (void *)(intptr_t)(-2); 
+    }
+    
+    /* Open the raw audio 'cache' file... */
+    userdata->file = fopen(FILE_NAME, "wb");
+    if (userdata->file == 0) {
+        fprintf(stderr, "Error: File has not been opened successfully.\n");
+        return (void *)(intptr_t)(-1);
+    }
+
+    while(keepRunning){
+        
+        size_t itemsToRead = PaUtil_GetRingBufferReadAvailable(&userdata->ringBuffer);
+        if (itemsToRead > 0) {
+            ring_buffer_size_t itemsRead = PaUtil_ReadRingBuffer(&userdata->ringBuffer, file_buffer, itemsToRead);
+            fwrite(file_buffer, SAMPLE_SIZE, itemsRead, userdata->file);
+        }
+        Pa_Sleep(80);
+    }
+
+    if (file_buffer) free(file_buffer);
+    if(userdata->file) fclose(userdata->file);
+    return NULL;
 }

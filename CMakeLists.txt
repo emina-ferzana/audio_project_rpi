@@ -14,6 +14,7 @@ add_executable(paex_read_write_wire src/paex_read_write_wire.c)
 add_executable(paex_pink src/paex_pink.c)
 add_executable(thread_example src/thread_example.c)
 add_executable(basis_audio_program src/basis_audio_program.c)
+add_executable(basis_audio_program_threads src/basis_audio_program_threads.c)
 
 # Link the executables to the PortAudio library
 target_link_libraries(pa_devs portaudio  asound m pthread rt)
@@ -26,9 +27,11 @@ target_link_libraries(thread_example pthread)
 # Add the directory where pa_ringbuffer.h is located to your include path
 target_include_directories(continuous_capture PRIVATE "/home/pi/project/lib/include" "/home/pi/project/lib/portaudio/src/common")
 target_include_directories(basis_audio_program PRIVATE "/home/pi/project/lib/include" "/home/pi/project/lib/portaudio/src/common")
+target_include_directories(basis_audio_program_threads PRIVATE "/home/pi/project/lib/include" "/home/pi/project/lib/portaudio/src/common")
 
 target_link_libraries(continuous_capture portaudio asound pthread m)
-target_link_libraries(basis_audio_program portaudio asound m pthread)
+target_link_libraries(basis_audio_program portaudio asound m)
+target_link_libraries(basis_audio_program_threads portaudio asound m pthread)
 
 # Set the output directory for the binaries
 set_target_properties(pa_devs
@@ -39,6 +42,7 @@ set_target_properties(pa_devs
                     paex_pink
                     thread_example
                     basis_audio_program
+                    basis_audio_program_threads
                     PROPERTIES
                     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
