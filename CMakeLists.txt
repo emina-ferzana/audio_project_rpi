@@ -31,7 +31,7 @@ target_include_directories(basis_audio_program_threads PRIVATE "/home/pi/project
 
 target_link_libraries(continuous_capture portaudio asound pthread m)
 target_link_libraries(basis_audio_program portaudio asound m)
-target_link_libraries(basis_audio_program_threads portaudio asound m pthread)
+target_link_libraries(basis_audio_program_threads portaudio sndfile m pthread)
 
 # Set the output directory for the binaries
 set_target_properties(pa_devs

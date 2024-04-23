@@ -7,13 +7,13 @@
 #include <pthread.h>
 #include "pa_ringbuffer.h"
 #include "pa_util.h"
-
+#include <sndfile.h>
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
 
 typedef float SAMPLE;
-#define NUM_CHANNELS          (2)
+#define NUM_CHANNELS          (1)
 #define SAMPLE_RATE       (48000)
 #define FRAMES_PER_BUFFER   (512)
 #define NUM_SECONDS          (60)
@@ -26,13 +26,14 @@ typedef float SAMPLE;
 #define SAMPLE_SIZE (sizeof(float))
 #define SAMPLE_SILENCE  (0.0f)
 #define PRINTF_S_FORMAT "%.8f"
-#define FILE_NAME       "thread_audio.raw"
+#define FILE_NAME_RAW       "/home/pi/project/tounge_clicking/tounge_clicking.raw"
+#define FILE_NAME_WAV       "/home/pi/project/tounge_clicking/tounge_clicking.wav"
 #define GAIN_FACTOR     2.0f
 
 static unsigned NextPowerOf2(unsigned val);
 void sigint_handler(int sig);
 void *writing_thread_function(void *arg);
-
+static uint8_t convert_raw_to_wav(const  char* raw_file, const char* wav_file);
 /* Custom data structure for passing to callback */
 typedef struct {
     PaUtilRingBuffer ringBuffer;
@@ -73,8 +74,8 @@ static int streamCallback(const void *inputBuffer, void *outputBuffer,
         }
         // write captured data to the output buffer for playback
         for(uint32_t i= 0; i < framesPerBuffer; i++){
-            *playback_data++ = GAIN_FACTOR * ( *captured_data++ );
-            *playback_data++ = GAIN_FACTOR * ( *captured_data++ );
+            *playback_data++ = GAIN_FACTOR * ( *captured_data++ );  /* left */
+            if( NUM_CHANNELS == 2 ) *playback_data++ = GAIN_FACTOR * ( *captured_data++ ); /* right */
         }
     }
 
@@ -174,10 +175,17 @@ int main(void)
 
     err = Pa_StopStream( stream );
     if( err != paNoError ) goto error1;
-    printf("Stopped stream.\n");
+    printf("\nStopped stream.\n");
     if (microphoneData.sampleData) free(microphoneData.sampleData);
-    Pa_Terminate();
+    printf("Freed allocated source.\n");
+    PaError error_type = Pa_Terminate();
+    if ( error_type != paNoError){
+        fprintf( stdout, "Error number: %d\n", error_type ); fflush(stdout);
+        fprintf( stdout, "Error message: %s\n", Pa_GetErrorText( error_type ) ); fflush(stdout);
+    }
     printf("Terminated sources.\n"); fflush(stdout);
+    uint8_t status = convert_raw_to_wav(FILE_NAME_RAW, FILE_NAME_WAV);
+    if ( status != 0) printf("Could not convert .raw to .wav file!Error code: %u\n", status);
     return 0;
 
 xrun:
@@ -241,7 +249,7 @@ void *writing_thread_function(void *arg){
     }
     
     /* Open the raw audio 'cache' file... */
-    userdata->file = fopen(FILE_NAME, "wb");
+    userdata->file = fopen(FILE_NAME_RAW, "wb");
     if (userdata->file == 0) {
         fprintf(stderr, "Error: File has not been opened successfully.\n");
         return (void *)(intptr_t)(-1);
@@ -260,4 +268,44 @@ void *writing_thread_function(void *arg){
     if (file_buffer) free(file_buffer);
     if(userdata->file) fclose(userdata->file);
     return NULL;
+}
+
+static uint8_t convert_raw_to_wav(const  char* raw_file, const char* wav_file){
+    SF_INFO sfinfo; 
+    sfinfo.samplerate = SAMPLE_RATE;
+    sfinfo.channels = NUM_CHANNELS;
+    sfinfo.format = SF_FORMAT_RAW | SF_FORMAT_FLOAT; 
+
+    SNDFILE *infile = sf_open(raw_file, SFM_READ, &sfinfo);
+    if (!infile) {
+        fprintf(stderr, "Error opening input file.\n");
+        return 1;
+    }
+
+    // Update format for the WAV output
+    sfinfo.format = SF_FORMAT_WAV | SF_FORMAT_FLOAT;
+
+    // Open the WAV file for output
+    SNDFILE *outfile = sf_open(wav_file, SFM_WRITE, &sfinfo);
+    if (!outfile) {
+        fprintf(stderr, "Error opening output file.\n");
+        sf_close(infile);
+        return 1;
+    }
+
+    // Buffer to hold audio samples
+    static const int BUFFER_SIZE = 1024;
+    SAMPLE buffer[BUFFER_SIZE];
+
+    // Read from raw, write to wav
+    int readcount;
+    while ((readcount = sf_read_float(infile, buffer, BUFFER_SIZE)) > 0) {
+        sf_write_float(outfile, buffer, readcount);
+    }
+
+    // Close files
+    sf_close(infile);
+    sf_close(outfile);
+
+    return 0;
 }
