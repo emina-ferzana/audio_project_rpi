@@ -8,6 +8,7 @@
 #include "pa_ringbuffer.h"
 #include "pa_util.h"
 #include <sndfile.h>
+#include <time.h>
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -21,29 +22,32 @@
 #define DITHER_FLAG           (0)
 
 /* Select sample format. */
-// Uncomment one of the following lines depending on the desired format
-// typedef int32_t SAMPLE; // For 24-bit integer
-// #define PA_SAMPLE_TYPE  paInt24
-// #define SAMPLE_SIZE (sizeof(int32_t)) // For 24-bit, this would typically be sizeof(int32_t)
-// #define SAMPLE_SILENCE  (0)
 typedef float SAMPLE;
 #define PA_SAMPLE_TYPE  paFloat32
 #define SAMPLE_SIZE (sizeof(float))
 #define SAMPLE_SILENCE  (0.0f)
 #define PRINTF_S_FORMAT "%.8f"
-#define FILE_NAME_RAW       "tounge_clicking.raw"
-#define FILE_NAME_WAV       "tounge_clicking.wav"
+#define FILE_NAME_RAW       "audio_file.raw"
+#define FILE_NAME_WAV       "audio_file.wav"
+#define TIMESTAMPS_FILE     "timestamps.txt"
 #define GAIN_FACTOR     2.0f
-//#define GAIN_FACTOR     1
 
 static unsigned NextPowerOf2(unsigned val);
 void sigint_handler(int sig);
 void *writing_thread_function(void *arg);
 static uint8_t convert_raw_to_wav(const  char* raw_file, const char* wav_file);
+
+typedef struct {
+    SAMPLE sample;
+    struct timespec timestamp;
+} TimestampedSample;
+
+TimestampedSample sampleSilence[FRAMES_PER_BUFFER * NUM_CHANNELS] = { {0.0f, {0, 0}} };
+
 /* Custom data structure for passing to callback */
 typedef struct {
     PaUtilRingBuffer ringBuffer;
-    SAMPLE          *sampleData;
+    TimestampedSample          *sampleData;
     FILE            *file;
 } AudioData;
 
@@ -51,7 +55,6 @@ typedef struct {
 volatile sig_atomic_t keepRunning = 1; 
 
 
-SAMPLE sampleSilence[FRAMES_PER_BUFFER * NUM_CHANNELS]={(0.0f)};
 
 /* This callback function captures data from the mic and simultaneously 
 writes that to a ring buffer and to the USB audio device output buffer 
@@ -66,14 +69,27 @@ static int streamCallback(const void *inputBuffer, void *outputBuffer,
     const SAMPLE *captured_data = (const SAMPLE*)inputBuffer;
     SAMPLE *playback_data = (SAMPLE *)outputBuffer;
 
+    struct timespec current_time;
+    clock_gettime(CLOCK_REALTIME, &current_time);
+    double frame_start_time = current_time.tv_sec + (current_time.tv_nsec / 1e9);
+    double sample_time_interval = 1.0 / SAMPLE_RATE;
+
     if(data != NULL){
         // write captured data to the ring buffer
         if (data->sampleData != NULL){
             ring_buffer_size_t elementsWriteable = PaUtil_GetRingBufferWriteAvailable(&data->ringBuffer);
             //printf("Writable %lu elements", elementsWriteable); fflush(stdout);
             ring_buffer_size_t elementsToWrite = min(elementsWriteable, (ring_buffer_size_t)(framesPerBuffer * NUM_CHANNELS));
+
+            TimestampedSample timestampedData[framesPerBuffer * NUM_CHANNELS];
             if ( inputBuffer != NULL){ 
-                PaUtil_WriteRingBuffer(&data->ringBuffer, captured_data, elementsToWrite);
+                for (unsigned long i = 0; i < elementsToWrite; ++i) {
+                    timestampedData[i].sample = captured_data[i];
+                    double precise_time = frame_start_time + (i / (double)NUM_CHANNELS) * sample_time_interval;
+                    timestampedData[i].timestamp.tv_sec = (time_t)precise_time;
+                    timestampedData[i].timestamp.tv_nsec = (long)((precise_time - timestampedData[i].timestamp.tv_sec) * 1e9);
+                }
+                PaUtil_WriteRingBuffer(&data->ringBuffer, timestampedData, elementsToWrite);
             } else {
                 PaUtil_WriteRingBuffer(&data->ringBuffer, sampleSilence,elementsToWrite);
             }
@@ -107,15 +123,15 @@ int main(void)
 
     printf("Initiating continuous audio capture. size of sample and float and sample type: %d %d %d\n", sizeof(SAMPLE), sizeof(float), sizeof(PA_SAMPLE_TYPE)); fflush(stdout);
     numSamples = NextPowerOf2((unsigned long) SAMPLE_RATE * 0.5 * NUM_CHANNELS); // half a second of samples can fit
-    numBytes = numSamples * sizeof(SAMPLE);
+    numBytes = numSamples * sizeof(TimestampedSample);
     
-    microphoneData.sampleData = (SAMPLE*)malloc(numBytes);
+    microphoneData.sampleData = (TimestampedSample*)malloc(numBytes);
     if(microphoneData.sampleData == NULL){
         perror("Could not allocate memory for ring buffer");
         exit(1);
     }
     
-    if (PaUtil_InitializeRingBuffer(&microphoneData.ringBuffer, sizeof(SAMPLE), numSamples, microphoneData.sampleData) < 0)
+    if (PaUtil_InitializeRingBuffer(&microphoneData.ringBuffer, sizeof(TimestampedSample), numSamples, microphoneData.sampleData) < 0)
     {
         printf("Failed to initialize ring buffer. Size is not power of 2 ??\n");
         free(microphoneData.sampleData);
@@ -150,6 +166,7 @@ int main(void)
         Pa_Terminate();
         return 1;
     }
+
     inputParameters.device = deviceIndex; /* default input device */
     printf( "Input device # %d.\n", inputParameters.device );
     inputInfo = Pa_GetDeviceInfo( inputParameters.device );
@@ -266,13 +283,13 @@ void sigint_handler(int sig){
 
 void *writing_thread_function(void *arg){
 
-    SAMPLE *file_buffer;
+    TimestampedSample *file_buffer;
     unsigned long       numSamples, numBytes;
     AudioData *userdata = (AudioData *)arg;
 
     numSamples = NextPowerOf2((unsigned long) SAMPLE_RATE * 0.5 * NUM_CHANNELS); // half a second of samples can fit
-    numBytes = numSamples * sizeof(SAMPLE);
-    file_buffer = (SAMPLE*) malloc(numBytes);
+    numBytes = numSamples * sizeof(TimestampedSample);
+    file_buffer = (TimestampedSample*) malloc(numBytes);
 
     if(file_buffer == NULL){
         perror("Could not allocate memory for file buffer. Data will not be written to file! \n");
@@ -281,7 +298,8 @@ void *writing_thread_function(void *arg){
     
     /* Open the raw audio 'cache' file... */
     userdata->file = fopen(FILE_NAME_RAW, "wb");
-    if (userdata->file == 0) {
+    FILE *timestamp_file = fopen(TIMESTAMPS_FILE, "w");
+    if (userdata->file == 0 || timestamp_file == 0) {
         fprintf(stderr, "Error: File has not been opened successfully.\n");
         return (void *)(intptr_t)(-1);
     }
@@ -291,13 +309,17 @@ void *writing_thread_function(void *arg){
         size_t itemsToRead = PaUtil_GetRingBufferReadAvailable(&userdata->ringBuffer);
         if (itemsToRead > 0) {
             ring_buffer_size_t itemsRead = PaUtil_ReadRingBuffer(&userdata->ringBuffer, file_buffer, itemsToRead);
-            fwrite(file_buffer, SAMPLE_SIZE, itemsRead, userdata->file);
+            for (ring_buffer_size_t i = 0; i < itemsRead; ++i) {
+                fwrite(&file_buffer[i].sample, SAMPLE_SIZE, 1, userdata->file);
+                fprintf(timestamp_file, "%ld.%09ld\n", file_buffer[i].timestamp.tv_sec, file_buffer[i].timestamp.tv_nsec);
+            }
         }
         Pa_Sleep(100);
     }
 
     if (file_buffer) free(file_buffer);
     if(userdata->file) fclose(userdata->file);
+    if(timestamp_file) fclose(timestamp_file);
     return NULL;
 }
 
