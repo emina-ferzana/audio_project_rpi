@@ -17,6 +17,7 @@ add_executable(basis_audio_program src/basis_audio_program.c /home/pi/audio_proj
 add_executable(basis_audio_program_threads src/basis_audio_program_threads.c /home/pi/audio_project_rpi/lib/portaudio/src/common/pa_ringbuffer.c)
 add_executable(basis_audio_program_timestamps src/basis_audio_program_timestamps.c /home/pi/audio_project_rpi/lib/portaudio/src/common/pa_ringbuffer.c)
 add_executable(aoa_test src/aoa_test.c)
+add_executable(basis_audio_program_adctimestamps src/basis_audio_program_adctimestamps.c /home/pi/audio_project_rpi/lib/portaudio/src/common/pa_ringbuffer.c)
 
 # Link the executables to the PortAudio library
 target_link_libraries(pa_devs portaudio  asound m pthread rt)
@@ -31,10 +32,13 @@ target_include_directories(continuous_capture PRIVATE "/home/pi/audio_project_rp
 target_include_directories(basis_audio_program PRIVATE "/home/pi/audio_project_rpi/lib/include" "/home/pi/audio_project_rpi/lib/portaudio/src/common")
 target_include_directories(basis_audio_program_threads PRIVATE "/home/pi/audio_project_rpi/lib/include" "/home/pi/audio_project_rpi/lib/portaudio/src/common")
 target_include_directories(basis_audio_program_timestamps PRIVATE "/home/pi/audio_project_rpi/lib/include" "/home/pi/audio_project_rpi/lib/portaudio/src/common")
+target_include_directories(basis_audio_program_adctimestamps PRIVATE "/home/pi/audio_project_rpi/lib/include" "/home/pi/audio_project_rpi/lib/portaudio/src/common")
+
 target_link_libraries(continuous_capture portaudio asound pthread m)
 target_link_libraries(basis_audio_program portaudio asound m)
 target_link_libraries(basis_audio_program_threads portaudio sndfile m pthread)
 target_link_libraries(basis_audio_program_timestamps portaudio sndfile m pthread)
+target_link_libraries(basis_audio_program_adctimestamps portaudio sndfile m pthread)
 
 # Set the output directory for the binaries
 set_target_properties(pa_devs
@@ -48,6 +52,7 @@ set_target_properties(pa_devs
                     basis_audio_program_threads
                     basis_audio_program_timestamps
                     aoa_test
+                    basis_audio_program_adctimestamps
                     PROPERTIES
                     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
