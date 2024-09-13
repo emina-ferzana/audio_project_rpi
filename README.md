@@ -6,26 +6,26 @@ File pa_devs.c lists out the recognized audio hardware of the system, and is rec
 
 ## Prerequisites
 
-- Build each library from the lib directory, and the proceed to build the project. 
+- Build each library from the lib directory, and then proceed to build the project. 
 
 ## Setup Instructions
 
 ### 1. Clone the Project
 
 First, download or clone the project repository to your local machine:
-
+'''
 git clone https://github.com/emina-ferzana/audio_project_rpi.git
 cd audio_project_rpi
 mkdir build
 cd build
 Cmake ..
 make
-
+'''
 ### 2. Run the Executables
 
 To run the prepared programs, use the following command:
-
+'''
 cd build/bin
 ./name_of_file
-
+'''
 
