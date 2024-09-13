@@ -213,7 +213,7 @@ int main(void)
     signal(SIGINT, sigint_handler);
 
     clock_gettime(CLOCK_REALTIME, &utcStartStreamTime);
-    streamStartTime = Pa_GetStreamTime(stream);
+    streamStartTime = Pa_GetStreamTime(stream);    
     err = Pa_StartStream( stream );
     if( err != paNoError ) goto error1;
     printf("\n=== Started stream. Recording, Press CTRL+C to stop.\n"); fflush(stdout);
