@@ -13,19 +13,22 @@ File pa_devs.c lists out the recognized audio hardware of the system, and is rec
 ### 1. Clone the Project
 
 First, download or clone the project repository to your local machine:
-'''
+
+```bash
 git clone https://github.com/emina-ferzana/audio_project_rpi.git
 cd audio_project_rpi
 mkdir build
 cd build
 Cmake ..
 make
-'''
+```
+
 ### 2. Run the Executables
 
 To run the prepared programs, use the following command:
-'''
+
+```bash
 cd build/bin
 ./name_of_file
-'''
+```
 
