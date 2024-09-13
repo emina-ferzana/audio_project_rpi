@@ -1,8 +1,8 @@
-# Classifier Project
+# Audio Acquisition Project
 
-This project implements the recording and timestamping of a continuous audio stream using the PortAudio API. 
-There are several versions of recording available, the most functionalities are available by running the basis_audio_program_adctimestamps.c file. 
-File pa_devs.c lists out the recognized audio hardware of the system, and is recommended to run before any recording to check if your system recognized the Adafruit digital microphone. 
+This project implements the recording and timestamping of a continuous audio stream using the PortAudio API on Unix system. 
+Several recording methods are  available, with the most comprehensive functionality provided by the `basis_audio_program_adctimestamps.c` file. 
+The file `pa_devs.c` lists all recognized audio hardware on the system. It is recommended to run this file before any recording session to verify that your system has correctly recognized the digital microphone. 
 
 ## Prerequisites
 
