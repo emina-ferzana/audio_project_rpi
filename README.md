@@ -6,7 +6,7 @@ The file `pa_devs.c` lists all recognized audio hardware on the system. It is re
 
 ## Prerequisites
 
-- Build each library from the lib directory, and then proceed to build the project. 
+- Build each library from the lib directory, and then proceed to build the project. More documentation is in the Notion documentation.
 
 ## Setup Instructions
 
@@ -32,3 +32,6 @@ cd build/bin
 ./name_of_file
 ```
 
+#### Further work
+
+Please introduce and push all changes from audio2.lmi.link! This github repo is synced to the directory audio_project_rpi on pi@audio2.lmi.link. 
